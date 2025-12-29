@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Ai;
 
 use App\Http\Controllers\Controller;
 use App\Mcp\Tools\CreateOrderTool;
+use App\Mcp\Tools\DeleteOrderTool;
 use App\Mcp\Tools\UpdateOrderTool;
 use App\Services\GeminiService;
 use Illuminate\Http\Request;
@@ -162,6 +163,26 @@ class OrderChatController extends Controller
                     'required' => ['order_no'],
                 ],
             ],
+
+            // Delete Order Tool
+            [
+                'name' => 'delete_order',
+                'description' => '⚠️ PERMANENTLY DELETE an order from the system. This action is IRREVERSIBLE. Requires order number AND confirmation password. Use ONLY when user explicitly confirms deletion.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'order_no' => [
+                            'type' => 'string',
+                            'description' => 'The order number to delete (REQUIRED)',
+                        ],
+                        'password' => [
+                            'type' => 'string',
+                            'description' => 'Confirmation password for security. User must provide this to confirm deletion (REQUIRED)',
+                        ],
+                    ],
+                    'required' => ['order_no', 'password'],
+                ],
+            ],
         ];
     }
 
@@ -181,6 +202,9 @@ class OrderChatController extends Controller
                 $response = $tool->handle($mcpRequest);
             } elseif ($name === 'update_order') {
                 $tool = new UpdateOrderTool;
+                $response = $tool->handle($mcpRequest);
+            } elseif ($name === 'delete_order') {
+                $tool = new DeleteOrderTool;
                 $response = $tool->handle($mcpRequest);
             } else {
                 throw new \Exception("Unknown tool: {$name}");
@@ -230,6 +254,7 @@ You are an AI assistant for order management in a logistics system.
 CAPABILITIES:
 1. CREATE ORDERS - Generate new orders with auto-generated order numbers
 2. UPDATE ORDERS - Modify existing order details
+3. DELETE ORDERS - Permanently remove orders (⚠️ REQUIRES PASSWORD)
 
 CREATING ORDERS:
 - Order numbers are AUTO-GENERATED from merchant configuration
@@ -243,13 +268,28 @@ UPDATING ORDERS:
 - If user doesn't provide order number, ask for it
 - Only update the fields the user wants to change
 - Confirm what will be changed before executing
-- Common updates: status changes, delivery dates, addresses, quantities
+
+DELETING ORDERS (⚠️ CRITICAL):
+- Deletion is PERMANENT and IRREVERSIBLE
+- ALWAYS warn the user about permanent deletion BEFORE asking for password
+- REQUIRES two things:
+  1. Order number
+  2. Confirmation password
+- NEVER proceed without the password
+- If user provides wrong password, inform them and DO NOT retry
+- Confirm the exact order details before deletion
+- Example flow:
+  User: "Delete order JUMANJI-042"
+  AI: "⚠️ WARNING: Deleting order JUMANJI-042 for John Mwangi (2x iPhone, 240,000 KES) is PERMANENT and cannot be undone. To confirm, please provide the deletion password."
+  User: "qwerty2025!"
+  AI: [calls delete_order function]
 
 INSTRUCTIONS:
-1. Determine if user wants to CREATE or UPDATE
-2. Extract all available information from their message
-3. If required fields are missing, ask concise follow-up questions ONE AT A TIME
-4. When you have all required info, call the appropriate function
+1. Determine if user wants to CREATE, UPDATE, or DELETE
+2. For DELETE: ALWAYS warn about permanent data loss first
+3. Extract all available information from their message
+4. If required fields are missing, ask concise follow-up questions ONE AT A TIME
+5. When you have all required info, call the appropriate function
 
 User message: {$userMessage}
 PROMPT;

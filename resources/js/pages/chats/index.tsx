@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
 import { useEffect, useRef, useState } from 'react'
-import { Loader2, Send, CheckCircle2, AlertCircle, Edit3, Plus } from 'lucide-react'
+import { Loader2, Send, CheckCircle2, AlertCircle, Edit3, Plus, Trash2 } from 'lucide-react'
 
 type Message = {
     role: 'user' | 'ai'
@@ -107,25 +107,31 @@ export default function OrderChat() {
                     const toolName = result.functionResponse?.name
                     const isUpdate = toolName === 'update_order'
                     const isCreate = toolName === 'create_order'
+                    const isDelete = toolName === 'delete_order'
 
                     return (
                         <div
                             key={idx}
                             className={`rounded-md border p-3 text-xs ${hasError
                                     ? 'border-destructive/50 bg-destructive/5'
-                                    : 'border-green-500/50 bg-green-500/5'
+                                    : isDelete
+                                        ? 'border-red-500/50 bg-red-500/5'
+                                        : 'border-green-500/50 bg-green-500/5'
                                 }`}
                         >
                             <div className="flex items-center gap-2 mb-2">
                                 {hasError ? (
                                     <AlertCircle className="h-4 w-4 text-destructive" />
+                                ) : isDelete ? (
+                                    <Trash2 className="h-4 w-4 text-red-600" />
                                 ) : (
                                     <CheckCircle2 className="h-4 w-4 text-green-600" />
                                 )}
                                 <Badge variant="outline" className="text-xs flex items-center gap-1">
                                     {isCreate && <Plus className="h-3 w-3" />}
                                     {isUpdate && <Edit3 className="h-3 w-3" />}
-                                    {isCreate ? 'Create Order' : isUpdate ? 'Update Order' : toolName || 'Tool'}
+                                    {isDelete && <Trash2 className="h-3 w-3" />}
+                                    {isCreate ? 'Create Order' : isUpdate ? 'Update Order' : isDelete ? 'Delete Order' : toolName || 'Tool'}
                                 </Badge>
                             </div>
 
@@ -134,18 +140,31 @@ export default function OrderChat() {
                             ) : (
                                 <div className="space-y-2 text-muted-foreground">
                                     {response?.message && (
-                                        <p className="font-medium text-foreground">
+                                        <p className={`font-medium ${isDelete ? 'text-red-600' : 'text-foreground'}`}>
                                             {response.message}
                                         </p>
                                     )}
 
+                                    {/* Show warning for deletions */}
+                                    {isDelete && response?.warning && (
+                                        <div className="flex items-start gap-2 p-2 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900 rounded">
+                                            <AlertCircle className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
+                                            <p className="text-xs text-red-700 dark:text-red-400 font-medium">
+                                                {response.warning}
+                                            </p>
+                                        </div>
+                                    )}
+
                                     {response?.order && (
-                                        <div className="mt-2 rounded border border-border/50 bg-background/50 p-2 space-y-1">
+                                        <div className={`mt-2 rounded border p-2 space-y-1 ${isDelete
+                                                ? 'border-red-200 dark:border-red-900 bg-red-50/50 dark:bg-red-950/10'
+                                                : 'border-border/50 bg-background/50'
+                                            }`}>
                                             <div className="flex items-center justify-between">
                                                 <span className="font-mono font-semibold text-foreground">
                                                     #{response.order.order_no}
                                                 </span>
-                                                {response.order.status && (
+                                                {response.order.status && !isDelete && (
                                                     <Badge
                                                         variant={
                                                             response.order.status === 'Delivered' ? 'default' :
@@ -157,39 +176,48 @@ export default function OrderChat() {
                                                         {response.order.status}
                                                     </Badge>
                                                 )}
+                                                {isDelete && (
+                                                    <Badge variant="destructive" className="text-xs">
+                                                        DELETED
+                                                    </Badge>
+                                                )}
                                             </div>
                                             <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
                                                 <div>
                                                     <span className="text-muted-foreground">Client:</span>{' '}
-                                                    <span className="font-medium text-foreground">
+                                                    <span className={`font-medium ${isDelete ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
                                                         {response.order.client_name}
                                                     </span>
                                                 </div>
                                                 <div>
                                                     <span className="text-muted-foreground">Amount:</span>{' '}
-                                                    <span className="font-medium text-foreground">
+                                                    <span className={`font-medium ${isDelete ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
                                                         {response.order.amount?.toLocaleString()} KES
                                                     </span>
                                                 </div>
                                                 <div className="col-span-2">
                                                     <span className="text-muted-foreground">Product:</span>{' '}
-                                                    <span className="font-medium text-foreground">
+                                                    <span className={`font-medium ${isDelete ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
                                                         {response.order.product_name} (×{response.order.quantity})
                                                     </span>
                                                 </div>
                                                 {response.order.city && (
                                                     <div>
                                                         <span className="text-muted-foreground">City:</span>{' '}
-                                                        <span className="text-foreground">{response.order.city}</span>
+                                                        <span className={isDelete ? 'line-through text-muted-foreground' : 'text-foreground'}>
+                                                            {response.order.city}
+                                                        </span>
                                                     </div>
                                                 )}
                                                 {response.order.merchant && (
                                                     <div>
                                                         <span className="text-muted-foreground">Merchant:</span>{' '}
-                                                        <span className="text-foreground">{response.order.merchant}</span>
+                                                        <span className={isDelete ? 'line-through text-muted-foreground' : 'text-foreground'}>
+                                                            {response.order.merchant}
+                                                        </span>
                                                     </div>
                                                 )}
-                                                {response.order.delivery_date && (
+                                                {response.order.delivery_date && !isDelete && (
                                                     <div className="col-span-2">
                                                         <span className="text-muted-foreground">Delivery:</span>{' '}
                                                         <span className="text-foreground">
@@ -244,7 +272,7 @@ export default function OrderChat() {
         { label: 'Create Order', prompt: 'Create a new order for' },
         { label: 'Update Status', prompt: 'Update order status to' },
         { label: 'Change Delivery', prompt: 'Change delivery date for order' },
-        { label: 'View Order', prompt: 'Show me details of order' },
+        { label: 'Delete Order', prompt: 'Delete order' },
     ]
 
     const handleQuickAction = (prompt: string) => {
@@ -301,6 +329,7 @@ export default function OrderChat() {
                                             <p>• "Create order for John, 2 iPhones, 240k, merchant Adla"</p>
                                             <p>• "Update order JUMANJI-042 status to delivered"</p>
                                             <p>• "Change delivery date for APPLEHUB-043 to Feb 15"</p>
+                                            <p className="text-red-600 dark:text-red-400">• "Delete order JUMANJI-042" (requires password)</p>
                                         </div>
                                     </div>
                                 </div>
