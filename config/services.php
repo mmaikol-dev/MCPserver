@@ -18,8 +18,13 @@ return [
         'key' => env('POSTMARK_API_KEY'),
     ],
 
+    'openrouter' => [
+        'key' => env('OPENROUTER_API_KEY', ''),
+        'model' => env('OPENROUTER_MODEL', 'openai/gpt-oss-20b:free'),
+    ],
+
     'gemini' => [
-        'key' => env('GEMINI_API_KEY', 'AIzaSyC8Tk-cx6wD_GlcCCSEfatsGhatzxXeiIQ'),
+        'key' => env('GEMINI_API_KEY', 'AIzaSyATwDMheGzmS5U3hayGBOYsC_tbF_BdT7c'),
         'model' => env('GEMINI_MODEL', 'gemini-2.5-flash'),
     ],
 

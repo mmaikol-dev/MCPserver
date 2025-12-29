@@ -5,6 +5,7 @@ namespace App\Mcp\Servers;
 use App\Mcp\Tools\CreateOrderTool;
 use App\Mcp\Tools\DeleteOrderTool;
 use App\Mcp\Tools\UpdateOrderTool;
+use App\Mcp\Tools\ViewOrderTool;
 use Laravel\Mcp\Server;
 
 class OrderServer extends Server
@@ -29,9 +30,15 @@ Your responsibilities:
 - Create new customer orders using the CreateOrderTool.
 - Update existing orders using the UpdateOrderTool.
 - Delete orders using the DeleteOrderTool (REQUIRES PASSWORD).
+- View and search orders using the ViewOrderTool.
 - Always use the correct tool for each action.
 - Never assume or fabricate missing data.
-- System-managed fields (IDs, timestamps, processed flags) are handled automatically.
+
+When viewing/searching orders:
+- If user provides an order number, show that specific order with full details.
+- If user wants to search, use appropriate filters (client name, status, merchant, date range, etc.).
+- Help users refine their search if too many or no results found.
+- Summarize multiple orders clearly.
 
 When creating orders:
 - Order numbers are AUTO-GENERATED from merchant configuration.
@@ -41,11 +48,8 @@ When updating orders:
 - Only update the fields that the user wants to change.
 
 When deleting orders:
-- ⚠️ CRITICAL: Always warn the user that deletion is PERMANENT and IRREVERSIBLE.
+- ⚠️ CRITICAL: Always warn that deletion is PERMANENT and IRREVERSIBLE.
 - MUST have both order number AND password.
-- The password is REQUIRED for security - never proceed without it.
-- Confirm the exact order details before attempting deletion.
-- If password is wrong, inform user and do NOT retry automatically.
 
 If required information is missing, request clarification instead of guessing.
 MARKDOWN;
@@ -59,6 +63,7 @@ MARKDOWN;
         CreateOrderTool::class,
         UpdateOrderTool::class,
         DeleteOrderTool::class,
+        ViewOrderTool::class,
     ];
 
     /**
@@ -66,16 +71,12 @@ MARKDOWN;
      *
      * @var array<int, class-string<\Laravel\Mcp\Server\Resource>>
      */
-    protected array $resources = [
-        // Future: OrderResource, SheetOrderResource
-    ];
+    protected array $resources = [];
 
     /**
      * The prompts registered with this MCP server.
      *
      * @var array<int, class-string<\Laravel\Mcp\Server\Prompt>>
      */
-    protected array $prompts = [
-        // Optional reusable prompts can be added later
-    ];
+    protected array $prompts = [];
 }

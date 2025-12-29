@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
 import { useEffect, useRef, useState } from 'react'
-import { Loader2, Send, CheckCircle2, AlertCircle, Edit3, Plus, Trash2 } from 'lucide-react'
+import { Loader2, Send, CheckCircle2, AlertCircle, Edit3, Plus, Trash2, Search, Eye, Mic, MicOff } from 'lucide-react'
 
 type Message = {
     role: 'user' | 'ai'
@@ -23,14 +23,87 @@ export default function OrderChat() {
     const [messages, setMessages] = useState<Message[]>([])
     const [history, setHistory] = useState<GeminiHistoryItem[]>([])
     const [loading, setLoading] = useState(false)
+    const [isListening, setIsListening] = useState(false)
+    const [isRecognitionSupported, setIsRecognitionSupported] = useState(true)
     const bottomRef = useRef<HTMLDivElement>(null)
+    const recognitionRef = useRef<any>(null)
 
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
     }, [messages])
 
+    // Initialize Speech Recognition
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+
+            if (SpeechRecognition) {
+                const recognition = new SpeechRecognition()
+                recognition.continuous = false
+                recognition.interimResults = true
+                recognition.lang = 'en-US'
+
+                recognition.onstart = () => {
+                    setIsListening(true)
+                }
+
+                recognition.onresult = (event: any) => {
+                    const transcript = Array.from(event.results)
+                        .map((result: any) => result[0])
+                        .map((result: any) => result.transcript)
+                        .join('')
+
+                    setMessage(transcript)
+                }
+
+                recognition.onerror = (event: any) => {
+                    console.error('Speech recognition error:', event.error)
+                    setIsListening(false)
+
+                    if (event.error === 'not-allowed') {
+                        alert('Microphone access denied. Please allow microphone access in your browser settings.')
+                    }
+                }
+
+                recognition.onend = () => {
+                    setIsListening(false)
+                }
+
+                recognitionRef.current = recognition
+            } else {
+                setIsRecognitionSupported(false)
+                console.warn('Speech Recognition not supported in this browser')
+            }
+        }
+
+        return () => {
+            if (recognitionRef.current) {
+                recognitionRef.current.stop()
+            }
+        }
+    }, [])
+
+    const toggleListening = () => {
+        if (!recognitionRef.current) return
+
+        if (isListening) {
+            recognitionRef.current.stop()
+        } else {
+            try {
+                recognitionRef.current.start()
+            } catch (error) {
+                console.error('Failed to start speech recognition:', error)
+            }
+        }
+    }
+
     const sendMessage = async () => {
         if (!message.trim() || loading) return
+
+        // Stop listening if active
+        if (isListening && recognitionRef.current) {
+            recognitionRef.current.stop()
+        }
 
         const userMessage = message.trim()
 
@@ -108,14 +181,17 @@ export default function OrderChat() {
                     const isUpdate = toolName === 'update_order'
                     const isCreate = toolName === 'create_order'
                     const isDelete = toolName === 'delete_order'
+                    const isView = toolName === 'view_order'
 
                     return (
                         <div
                             key={idx}
                             className={`rounded-md border p-3 text-xs ${hasError
-                                    ? 'border-destructive/50 bg-destructive/5'
-                                    : isDelete
-                                        ? 'border-red-500/50 bg-red-500/5'
+                                ? 'border-destructive/50 bg-destructive/5'
+                                : isDelete
+                                    ? 'border-red-500/50 bg-red-500/5'
+                                    : isView
+                                        ? 'border-blue-500/50 bg-blue-500/5'
                                         : 'border-green-500/50 bg-green-500/5'
                                 }`}
                         >
@@ -124,6 +200,12 @@ export default function OrderChat() {
                                     <AlertCircle className="h-4 w-4 text-destructive" />
                                 ) : isDelete ? (
                                     <Trash2 className="h-4 w-4 text-red-600" />
+                                ) : isView ? (
+                                    response?.type === 'single' ? (
+                                        <Eye className="h-4 w-4 text-blue-600" />
+                                    ) : (
+                                        <Search className="h-4 w-4 text-blue-600" />
+                                    )
                                 ) : (
                                     <CheckCircle2 className="h-4 w-4 text-green-600" />
                                 )}
@@ -131,8 +213,18 @@ export default function OrderChat() {
                                     {isCreate && <Plus className="h-3 w-3" />}
                                     {isUpdate && <Edit3 className="h-3 w-3" />}
                                     {isDelete && <Trash2 className="h-3 w-3" />}
-                                    {isCreate ? 'Create Order' : isUpdate ? 'Update Order' : isDelete ? 'Delete Order' : toolName || 'Tool'}
+                                    {isView && (response?.type === 'single' ? <Eye className="h-3 w-3" /> : <Search className="h-3 w-3" />)}
+                                    {isCreate ? 'Create Order' :
+                                        isUpdate ? 'Update Order' :
+                                            isDelete ? 'Delete Order' :
+                                                isView ? (response?.type === 'single' ? 'View Order' : 'Search Orders') :
+                                                    toolName || 'Tool'}
                                 </Badge>
+                                {isView && response?.count && (
+                                    <Badge variant="secondary" className="text-xs ml-auto">
+                                        {response.count} {response.count === 1 ? 'result' : 'results'}
+                                    </Badge>
+                                )}
                             </div>
 
                             {hasError ? (
@@ -157,8 +249,8 @@ export default function OrderChat() {
 
                                     {response?.order && (
                                         <div className={`mt-2 rounded border p-2 space-y-1 ${isDelete
-                                                ? 'border-red-200 dark:border-red-900 bg-red-50/50 dark:bg-red-950/10'
-                                                : 'border-border/50 bg-background/50'
+                                            ? 'border-red-200 dark:border-red-900 bg-red-50/50 dark:bg-red-950/10'
+                                            : 'border-border/50 bg-background/50'
                                             }`}>
                                             <div className="flex items-center justify-between">
                                                 <span className="font-mono font-semibold text-foreground">
@@ -229,6 +321,89 @@ export default function OrderChat() {
                                         </div>
                                     )}
 
+                                    {/* Show multiple orders for search results */}
+                                    {isView && response?.type === 'multiple' && response?.orders && (
+                                        <div className="mt-3 space-y-2">
+                                            {/* Search summary */}
+                                            {response.filters && response.filters !== 'none' && (
+                                                <div className="text-xs text-muted-foreground bg-background/50 rounded p-2 mb-2">
+                                                    <span className="font-medium">Filters:</span> {response.filters}
+                                                </div>
+                                            )}
+
+                                            {/* Orders list */}
+                                            <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                                                {response.orders.map((order: any, idx: number) => (
+                                                    <div
+                                                        key={idx}
+                                                        className="rounded border border-border/50 bg-background/50 p-2 hover:bg-accent/5 transition-colors"
+                                                    >
+                                                        <div className="flex items-start justify-between gap-2 mb-1">
+                                                            <span className="font-mono text-xs font-semibold text-foreground">
+                                                                #{order.order_no}
+                                                            </span>
+                                                            <Badge
+                                                                variant={
+                                                                    order.status === 'Delivered' ? 'default' :
+                                                                        order.status === 'Cancelled' ? 'destructive' :
+                                                                            'secondary'
+                                                                }
+                                                                className="text-xs"
+                                                            >
+                                                                {order.status}
+                                                            </Badge>
+                                                        </div>
+                                                        <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs">
+                                                            <div>
+                                                                <span className="text-muted-foreground">Client:</span>{' '}
+                                                                <span className="text-foreground font-medium">{order.client_name}</span>
+                                                            </div>
+                                                            <div>
+                                                                <span className="text-muted-foreground">Amount:</span>{' '}
+                                                                <span className="text-foreground font-medium">
+                                                                    {order.amount?.toLocaleString()} KES
+                                                                </span>
+                                                            </div>
+                                                            <div className="col-span-2">
+                                                                <span className="text-muted-foreground">Product:</span>{' '}
+                                                                <span className="text-foreground">{order.product_name} (×{order.quantity})</span>
+                                                            </div>
+                                                            {order.city && (
+                                                                <div>
+                                                                    <span className="text-muted-foreground">City:</span>{' '}
+                                                                    <span className="text-foreground text-xs">{order.city}</span>
+                                                                </div>
+                                                            )}
+                                                            {order.merchant && (
+                                                                <div>
+                                                                    <span className="text-muted-foreground">Merchant:</span>{' '}
+                                                                    <span className="text-foreground text-xs">{order.merchant}</span>
+                                                                </div>
+                                                            )}
+                                                            {order.order_date && (
+                                                                <div className="col-span-2 text-xs text-muted-foreground">
+                                                                    📅 {new Date(order.order_date).toLocaleDateString()}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+
+                                            {/* Summary footer */}
+                                            {response.total_amount && (
+                                                <div className="mt-2 pt-2 border-t border-border/50 text-xs">
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-muted-foreground">Total Amount:</span>
+                                                        <span className="font-semibold text-foreground">
+                                                            {response.total_amount.toLocaleString()} KES
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
                                     {/* Show changes for updates */}
                                     {isUpdate && response?.changes && response.changes.length > 0 && (
                                         <div className="mt-3 rounded border border-amber-500/30 bg-amber-500/5 p-2">
@@ -270,9 +445,9 @@ export default function OrderChat() {
 
     const quickActions = [
         { label: 'Create Order', prompt: 'Create a new order for' },
-        { label: 'Update Status', prompt: 'Update order status to' },
-        { label: 'Change Delivery', prompt: 'Change delivery date for order' },
-        { label: 'Delete Order', prompt: 'Delete order' },
+        { label: 'Search Orders', prompt: 'Show me orders' },
+        { label: 'View Order', prompt: 'Show order' },
+        { label: 'Update Order', prompt: 'Update order' },
     ]
 
     const handleQuickAction = (prompt: string) => {
@@ -289,12 +464,19 @@ export default function OrderChat() {
                         <div>
                             <h2 className="text-lg font-semibold">AI Order Assistant</h2>
                             <p className="text-sm text-muted-foreground">
-                                Create and update orders using natural language
+                                Create and update orders using natural language or voice
                             </p>
                         </div>
-                        <Badge variant="outline" className="text-xs">
-                            Powered by Gemini
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                            {!isRecognitionSupported && (
+                                <Badge variant="outline" className="text-xs text-amber-600">
+                                    Voice unavailable
+                                </Badge>
+                            )}
+                            <Badge variant="outline" className="text-xs">
+                                Powered by OpenRouter
+                            </Badge>
+                        </div>
                     </div>
                 </div>
 
@@ -306,7 +488,7 @@ export default function OrderChat() {
                                     <div className="text-5xl">🤖</div>
                                     <h3 className="text-lg font-medium">Start a conversation</h3>
                                     <p className="text-sm text-muted-foreground">
-                                        I can help you create and update orders using natural language.
+                                        I can help you create and update orders using natural language or voice commands.
                                     </p>
 
                                     <div className="grid grid-cols-2 gap-2 mt-4">
@@ -326,10 +508,11 @@ export default function OrderChat() {
                                     <div className="mt-6 text-left space-y-2 border-t pt-4">
                                         <p className="text-xs font-medium text-muted-foreground">Examples:</p>
                                         <div className="space-y-1 text-xs text-muted-foreground">
-                                            <p>• "Create order for John, 2 iPhones, 240k, merchant Adla"</p>
-                                            <p>• "Update order JUMANJI-042 status to delivered"</p>
-                                            <p>• "Change delivery date for APPLEHUB-043 to Feb 15"</p>
-                                            <p className="text-red-600 dark:text-red-400">• "Delete order JUMANJI-042" (requires password)</p>
+                                            <p>• "Show me order JUMANJI-042"</p>
+                                            <p>• "Find all pending orders"</p>
+                                            <p>• "Show orders for John Mwangi"</p>
+                                            <p>• "List Adla's orders from this month"</p>
+                                            <p>• "Find orders over 100k"</p>
                                         </div>
                                     </div>
                                 </div>
@@ -343,8 +526,8 @@ export default function OrderChat() {
                             >
                                 <div
                                     className={`max-w-[80%] rounded-lg p-3 text-sm ${msg.role === 'user'
-                                            ? 'bg-primary text-primary-foreground'
-                                            : 'bg-muted'
+                                        ? 'bg-primary text-primary-foreground'
+                                        : 'bg-muted'
                                         }`}
                                 >
                                     <div className="whitespace-pre-wrap break-words">
@@ -373,7 +556,7 @@ export default function OrderChat() {
                 <div className="mt-4 space-y-2">
                     <div className="flex gap-2">
                         <Input
-                            placeholder="Type your message... (e.g., 'Create order for...' or 'Update order X to...')"
+                            placeholder={isListening ? "Listening..." : "Type your message or click the mic to speak..."}
                             value={message}
                             onChange={(e) => setMessage(e.target.value)}
                             onKeyDown={(e) => {
@@ -382,12 +565,27 @@ export default function OrderChat() {
                                     sendMessage()
                                 }
                             }}
-                            disabled={loading}
-                            className="flex-1"
+                            disabled={loading || isListening}
+                            className={`flex-1 ${isListening ? 'border-red-500 animate-pulse' : ''}`}
                         />
+                        {isRecognitionSupported && (
+                            <Button
+                                onClick={toggleListening}
+                                disabled={loading}
+                                size="icon"
+                                variant={isListening ? "destructive" : "outline"}
+                                className={isListening ? "animate-pulse" : ""}
+                            >
+                                {isListening ? (
+                                    <MicOff className="h-4 w-4" />
+                                ) : (
+                                    <Mic className="h-4 w-4" />
+                                )}
+                            </Button>
+                        )}
                         <Button
                             onClick={sendMessage}
-                            disabled={loading || !message.trim()}
+                            disabled={loading || !message.trim() || isListening}
                             size="icon"
                         >
                             {loading ? (
@@ -398,7 +596,10 @@ export default function OrderChat() {
                         </Button>
                     </div>
                     <p className="text-xs text-muted-foreground text-center">
-                        Press Enter to send • Shift+Enter for new line
+                        {isRecognitionSupported
+                            ? "Press Enter to send • Shift+Enter for new line • Click mic to speak"
+                            : "Press Enter to send • Shift+Enter for new line"
+                        }
                     </p>
                 </div>
             </div>

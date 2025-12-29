@@ -7,7 +7,7 @@ use App\Mcp\Tools\CreateOrderTool;
 use App\Mcp\Tools\DeleteOrderTool;
 use App\Mcp\Tools\UpdateOrderTool;
 use App\Mcp\Tools\ViewOrderTool;
-use App\Services\OpenRouterService;
+use App\Services\GeminiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
@@ -20,7 +20,7 @@ class OrderChatController extends Controller
         return Inertia::render('chats/index');
     }
 
-    public function chat(Request $request, OpenRouterService $openRouter)
+    public function chat(Request $request, GeminiService $gemini)
     {
         Log::info('Chat endpoint hit', $request->all());
 
@@ -32,12 +32,12 @@ class OrderChatController extends Controller
         $message = $validated['message'];
         $history = $validated['history'] ?? [];
 
-        // Get MCP tools schema for OpenRouter
+        // Get MCP tools schema for Gemini
         $tools = $this->getMcpToolsSchema();
 
         try {
-            // First call to OpenRouter with tools
-            $response = $openRouter->chat(
+            // First call to Gemini with tools
+            $response = $gemini->chat(
                 $this->buildOrderPrompt($message),
                 $tools,
                 $history
@@ -45,7 +45,7 @@ class OrderChatController extends Controller
 
             $functionCalls = $response['functionCalls'];
 
-            // If OpenRouter wants to call a function, execute it
+            // If Gemini wants to call a function, execute it
             if (! empty($functionCalls)) {
                 $toolResults = [];
 
@@ -54,14 +54,14 @@ class OrderChatController extends Controller
                     $toolResults[] = $result;
                 }
 
-                // Build history for OpenRouter format
+                // Send tool results back to Gemini for final response
                 $finalHistory = array_merge($history, [
                     ['role' => 'user', 'parts' => [['text' => $message]]],
                     ['role' => 'model', 'parts' => array_map(fn ($call) => ['functionCall' => $call], $functionCalls)],
                     ['role' => 'function', 'parts' => $toolResults],
                 ]);
 
-                $finalResponse = $openRouter->chat('Continue and provide a natural response based on the tool results.', [], $finalHistory);
+                $finalResponse = $gemini->chat('Continue', [], $finalHistory);
 
                 return response()->json([
                     'reply' => $finalResponse['text'],
@@ -93,7 +93,7 @@ class OrderChatController extends Controller
     }
 
     /**
-     * Get MCP tools in OpenRouter (OpenAI) function calling format
+     * Get MCP tools in Gemini function calling format
      */
     protected function getMcpToolsSchema(): array
     {
@@ -267,7 +267,7 @@ class OrderChatController extends Controller
     }
 
     /**
-     * Execute MCP tool based on OpenRouter's function call
+     * Execute MCP tool based on Gemini's function call
      */
     protected function executeMcpTool(array $functionCall): array
     {
