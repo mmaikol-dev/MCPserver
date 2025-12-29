@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
 import { useEffect, useRef, useState } from 'react'
-import { Loader2, Send, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Loader2, Send, CheckCircle2, AlertCircle, Edit3, Plus } from 'lucide-react'
 
 type Message = {
     role: 'user' | 'ai'
@@ -104,6 +104,9 @@ export default function OrderChat() {
                 {toolResults.map((result, idx) => {
                     const response = result.functionResponse?.response
                     const hasError = response?.error
+                    const toolName = result.functionResponse?.name
+                    const isUpdate = toolName === 'update_order'
+                    const isCreate = toolName === 'create_order'
 
                     return (
                         <div
@@ -119,26 +122,113 @@ export default function OrderChat() {
                                 ) : (
                                     <CheckCircle2 className="h-4 w-4 text-green-600" />
                                 )}
-                                <Badge variant="outline" className="text-xs">
-                                    {result.functionResponse?.name || 'Tool'}
+                                <Badge variant="outline" className="text-xs flex items-center gap-1">
+                                    {isCreate && <Plus className="h-3 w-3" />}
+                                    {isUpdate && <Edit3 className="h-3 w-3" />}
+                                    {isCreate ? 'Create Order' : isUpdate ? 'Update Order' : toolName || 'Tool'}
                                 </Badge>
                             </div>
 
                             {hasError ? (
                                 <p className="text-destructive">{response.error}</p>
                             ) : (
-                                <div className="space-y-1 text-muted-foreground">
+                                <div className="space-y-2 text-muted-foreground">
                                     {response?.message && (
                                         <p className="font-medium text-foreground">
                                             {response.message}
                                         </p>
                                     )}
+
                                     {response?.order && (
-                                        <div className="mt-2 space-y-1">
-                                            <p>Order #{response.order.order_no}</p>
-                                            <p>Client: {response.order.client_name}</p>
-                                            <p>Amount: {response.order.amount}</p>
-                                            <p>Product: {response.order.product_name} (x{response.order.quantity})</p>
+                                        <div className="mt-2 rounded border border-border/50 bg-background/50 p-2 space-y-1">
+                                            <div className="flex items-center justify-between">
+                                                <span className="font-mono font-semibold text-foreground">
+                                                    #{response.order.order_no}
+                                                </span>
+                                                {response.order.status && (
+                                                    <Badge
+                                                        variant={
+                                                            response.order.status === 'Delivered' ? 'default' :
+                                                                response.order.status === 'Cancelled' ? 'destructive' :
+                                                                    'secondary'
+                                                        }
+                                                        className="text-xs"
+                                                    >
+                                                        {response.order.status}
+                                                    </Badge>
+                                                )}
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                                                <div>
+                                                    <span className="text-muted-foreground">Client:</span>{' '}
+                                                    <span className="font-medium text-foreground">
+                                                        {response.order.client_name}
+                                                    </span>
+                                                </div>
+                                                <div>
+                                                    <span className="text-muted-foreground">Amount:</span>{' '}
+                                                    <span className="font-medium text-foreground">
+                                                        {response.order.amount?.toLocaleString()} KES
+                                                    </span>
+                                                </div>
+                                                <div className="col-span-2">
+                                                    <span className="text-muted-foreground">Product:</span>{' '}
+                                                    <span className="font-medium text-foreground">
+                                                        {response.order.product_name} (×{response.order.quantity})
+                                                    </span>
+                                                </div>
+                                                {response.order.city && (
+                                                    <div>
+                                                        <span className="text-muted-foreground">City:</span>{' '}
+                                                        <span className="text-foreground">{response.order.city}</span>
+                                                    </div>
+                                                )}
+                                                {response.order.merchant && (
+                                                    <div>
+                                                        <span className="text-muted-foreground">Merchant:</span>{' '}
+                                                        <span className="text-foreground">{response.order.merchant}</span>
+                                                    </div>
+                                                )}
+                                                {response.order.delivery_date && (
+                                                    <div className="col-span-2">
+                                                        <span className="text-muted-foreground">Delivery:</span>{' '}
+                                                        <span className="text-foreground">
+                                                            {new Date(response.order.delivery_date).toLocaleDateString()}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Show changes for updates */}
+                                    {isUpdate && response?.changes && response.changes.length > 0 && (
+                                        <div className="mt-3 rounded border border-amber-500/30 bg-amber-500/5 p-2">
+                                            <p className="font-medium text-foreground mb-2 text-xs flex items-center gap-1">
+                                                <Edit3 className="h-3 w-3" />
+                                                Changes Made ({response.changes_count}):
+                                            </p>
+                                            <div className="space-y-1.5">
+                                                {response.changes.map((change: any, i: number) => (
+                                                    <div
+                                                        key={i}
+                                                        className="flex items-center gap-2 text-xs bg-background/50 rounded p-1.5"
+                                                    >
+                                                        <span className="font-medium text-foreground capitalize min-w-[100px]">
+                                                            {change.field.replace(/_/g, ' ')}:
+                                                        </span>
+                                                        <div className="flex items-center gap-1.5 flex-1">
+                                                            <span className="line-through text-muted-foreground/70 text-xs">
+                                                                {change.old_value || '(empty)'}
+                                                            </span>
+                                                            <span className="text-muted-foreground">→</span>
+                                                            <span className="text-green-600 font-medium">
+                                                                {change.new_value || '(empty)'}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
                                     )}
                                 </div>
@@ -150,29 +240,69 @@ export default function OrderChat() {
         )
     }
 
+    const quickActions = [
+        { label: 'Create Order', prompt: 'Create a new order for' },
+        { label: 'Update Status', prompt: 'Update order status to' },
+        { label: 'Change Delivery', prompt: 'Change delivery date for order' },
+        { label: 'View Order', prompt: 'Show me details of order' },
+    ]
+
+    const handleQuickAction = (prompt: string) => {
+        setMessage(prompt + ' ')
+    }
+
     return (
         <AppLayout>
             <Head title="AI Order Chat" />
 
             <div className="flex h-full flex-col rounded-xl border border-sidebar-border bg-background p-4">
                 <div className="mb-4 border-b pb-3">
-                    <h2 className="text-lg font-semibold">AI Order Assistant</h2>
-                    <p className="text-sm text-muted-foreground">
-                        Create orders using natural language
-                    </p>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h2 className="text-lg font-semibold">AI Order Assistant</h2>
+                            <p className="text-sm text-muted-foreground">
+                                Create and update orders using natural language
+                            </p>
+                        </div>
+                        <Badge variant="outline" className="text-xs">
+                            Powered by Gemini
+                        </Badge>
+                    </div>
                 </div>
 
                 <ScrollArea className="flex-1 pr-4">
                     <div className="space-y-4 pb-4">
                         {messages.length === 0 && (
                             <div className="flex h-[400px] items-center justify-center">
-                                <div className="text-center space-y-3">
-                                    <div className="text-4xl">💬</div>
+                                <div className="text-center space-y-4 max-w-2xl">
+                                    <div className="text-5xl">🤖</div>
                                     <h3 className="text-lg font-medium">Start a conversation</h3>
-                                    <p className="text-sm text-muted-foreground max-w-md">
-                                        Try: "Create an order for John Doe, phone 0712345678,
-                                        address 123 Main St, Nairobi, for 2 laptops at 50000 KES each"
+                                    <p className="text-sm text-muted-foreground">
+                                        I can help you create and update orders using natural language.
                                     </p>
+
+                                    <div className="grid grid-cols-2 gap-2 mt-4">
+                                        {quickActions.map((action, idx) => (
+                                            <Button
+                                                key={idx}
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => handleQuickAction(action.prompt)}
+                                                className="text-xs"
+                                            >
+                                                {action.label}
+                                            </Button>
+                                        ))}
+                                    </div>
+
+                                    <div className="mt-6 text-left space-y-2 border-t pt-4">
+                                        <p className="text-xs font-medium text-muted-foreground">Examples:</p>
+                                        <div className="space-y-1 text-xs text-muted-foreground">
+                                            <p>• "Create order for John, 2 iPhones, 240k, merchant Adla"</p>
+                                            <p>• "Update order JUMANJI-042 status to delivered"</p>
+                                            <p>• "Change delivery date for APPLEHUB-043 to Feb 15"</p>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -180,8 +310,7 @@ export default function OrderChat() {
                         {messages.map((msg, i) => (
                             <div
                                 key={i}
-                                className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'
-                                    }`}
+                                className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                             >
                                 <div
                                     className={`max-w-[80%] rounded-lg p-3 text-sm ${msg.role === 'user'
@@ -212,36 +341,37 @@ export default function OrderChat() {
                     </div>
                 </ScrollArea>
 
-                <div className="mt-4 flex gap-2">
-                    <Input
-                        placeholder="Describe the order you want to create..."
-                        value={message}
-                        onChange={(e) => setMessage(e.target.value)}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter' && !e.shiftKey) {
-                                e.preventDefault()
-                                sendMessage()
-                            }
-                        }}
-                        disabled={loading}
-                        className="flex-1"
-                    />
-                    <Button
-                        onClick={sendMessage}
-                        disabled={loading || !message.trim()}
-                        size="icon"
-                    >
-                        {loading ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                            <Send className="h-4 w-4" />
-                        )}
-                    </Button>
+                <div className="mt-4 space-y-2">
+                    <div className="flex gap-2">
+                        <Input
+                            placeholder="Type your message... (e.g., 'Create order for...' or 'Update order X to...')"
+                            value={message}
+                            onChange={(e) => setMessage(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault()
+                                    sendMessage()
+                                }
+                            }}
+                            disabled={loading}
+                            className="flex-1"
+                        />
+                        <Button
+                            onClick={sendMessage}
+                            disabled={loading || !message.trim()}
+                            size="icon"
+                        >
+                            {loading ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                                <Send className="h-4 w-4" />
+                            )}
+                        </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground text-center">
+                        Press Enter to send • Shift+Enter for new line
+                    </p>
                 </div>
-
-                <p className="mt-2 text-xs text-muted-foreground text-center">
-                    Press Enter to send • Shift+Enter for new line
-                </p>
             </div>
         </AppLayout>
     )

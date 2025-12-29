@@ -3,6 +3,7 @@
 namespace App\Mcp\Servers;
 
 use App\Mcp\Tools\CreateOrderTool;
+use App\Mcp\Tools\UpdateOrderTool;
 use Laravel\Mcp\Server;
 
 class OrderServer extends Server
@@ -24,11 +25,16 @@ class OrderServer extends Server
 You are an order management assistant for a logistics system.
 
 Your responsibilities:
-- Create new customer orders using the provided tools.
+- Create new customer orders using the CreateOrderTool.
+- Update existing orders using the UpdateOrderTool.
 - Always use the correct tool for each action.
 - Never assume or fabricate missing data.
-- Do not update or delete orders unless a specific tool is provided.
 - System-managed fields (IDs, timestamps, processed flags) are handled automatically.
+
+When updating orders:
+- Always ask for the order number first if not provided.
+- Only update the fields that the user wants to change.
+- Confirm changes before executing.
 
 If required information is missing, request clarification instead of guessing.
 MARKDOWN;
@@ -40,6 +46,7 @@ MARKDOWN;
      */
     protected array $tools = [
         CreateOrderTool::class,
+        UpdateOrderTool::class,
     ];
 
     /**
