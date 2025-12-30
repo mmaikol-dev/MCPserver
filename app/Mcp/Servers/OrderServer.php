@@ -2,10 +2,14 @@
 
 namespace App\Mcp\Servers;
 
+use App\Mcp\Tools\AnalyzeCodeTool;
 use App\Mcp\Tools\CreateOrderTool;
 use App\Mcp\Tools\DeleteOrderTool;
+use App\Mcp\Tools\ListFilesTool;
+use App\Mcp\Tools\ReadFileTool;
 use App\Mcp\Tools\UpdateOrderTool;
 use App\Mcp\Tools\ViewOrderTool;
+use App\Mcp\Tools\WriteFileTool;
 use Laravel\Mcp\Server;
 
 class OrderServer extends Server
@@ -64,6 +68,12 @@ MARKDOWN;
         UpdateOrderTool::class,
         DeleteOrderTool::class,
         ViewOrderTool::class,
+
+        // Code access tools
+        ReadFileTool::class,
+        ListFilesTool::class,
+        WriteFileTool::class,
+        AnalyzeCodeTool::class,
     ];
 
     /**

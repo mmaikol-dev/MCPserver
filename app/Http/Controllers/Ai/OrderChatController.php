@@ -3,11 +3,15 @@
 namespace App\Http\Controllers\Ai;
 
 use App\Http\Controllers\Controller;
+use App\Mcp\Tools\AnalyzeCodeTool;
 use App\Mcp\Tools\CreateOrderTool;
 use App\Mcp\Tools\DeleteOrderTool;
+use App\Mcp\Tools\ListFilesTool;
+use App\Mcp\Tools\ReadFileTool;
 use App\Mcp\Tools\UpdateOrderTool;
 use App\Mcp\Tools\ViewOrderTool;
-use App\Services\OpenRouterService;
+use App\Mcp\Tools\WriteFileTool;
+use App\Services\GeminiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
@@ -20,7 +24,7 @@ class OrderChatController extends Controller
         return Inertia::render('chats/index');
     }
 
-    public function chat(Request $request, OpenRouterService $openRouter)
+    public function chat(Request $request, GeminiService $gemini)
     {
         Log::info('Chat endpoint hit', $request->all());
 
@@ -32,12 +36,12 @@ class OrderChatController extends Controller
         $message = $validated['message'];
         $history = $validated['history'] ?? [];
 
-        // Get MCP tools schema for OpenRouter
+        // Get MCP tools schema for Gemini
         $tools = $this->getMcpToolsSchema();
 
         try {
-            // First call to OpenRouter with tools
-            $response = $openRouter->chat(
+            // First call to Gemini with tools
+            $response = $gemini->chat(
                 $this->buildOrderPrompt($message),
                 $tools,
                 $history
@@ -45,7 +49,7 @@ class OrderChatController extends Controller
 
             $functionCalls = $response['functionCalls'];
 
-            // If OpenRouter wants to call a function, execute it
+            // If Gemini wants to call a function, execute it
             if (! empty($functionCalls)) {
                 $toolResults = [];
 
@@ -54,14 +58,14 @@ class OrderChatController extends Controller
                     $toolResults[] = $result;
                 }
 
-                // Build history for OpenRouter format
+                // Send tool results back to Gemini for final response
                 $finalHistory = array_merge($history, [
                     ['role' => 'user', 'parts' => [['text' => $message]]],
                     ['role' => 'model', 'parts' => array_map(fn ($call) => ['functionCall' => $call], $functionCalls)],
                     ['role' => 'function', 'parts' => $toolResults],
                 ]);
 
-                $finalResponse = $openRouter->chat('Continue and provide a natural response based on the tool results.', [], $finalHistory);
+                $finalResponse = $gemini->chat('Continue', [], $finalHistory);
 
                 return response()->json([
                     'reply' => $finalResponse['text'],
@@ -93,7 +97,7 @@ class OrderChatController extends Controller
     }
 
     /**
-     * Get MCP tools in OpenRouter (OpenAI) function calling format
+     * Get MCP tools in Gemini function calling format
      */
     protected function getMcpToolsSchema(): array
     {
@@ -244,6 +248,108 @@ class OrderChatController extends Controller
                 ],
             ],
 
+            // Read File Tool
+            [
+                'name' => 'read_file',
+                'description' => 'Read the contents of a file from the project codebase. Use this to view source code, configuration files, or any text-based file.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'file_path' => [
+                            'type' => 'string',
+                            'description' => 'Path to file relative to project root (e.g., "app/Http/Controllers/Ai/OrderChatController.php")',
+                        ],
+                    ],
+                    'required' => ['file_path'],
+                ],
+            ],
+
+            // List Files Tool
+            [
+                'name' => 'list_files',
+                'description' => 'List files and directories in a specified path. Use this to browse the project structure and find files.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'directory' => [
+                            'type' => 'string',
+                            'description' => 'Directory path relative to project root',
+                            'default' => '.',
+                        ],
+                        'recursive' => [
+                            'type' => 'boolean',
+                            'description' => 'List files recursively',
+                            'default' => false,
+                        ],
+                        'pattern' => [
+                            'type' => 'string',
+                            'description' => 'File name pattern (e.g., "*.php")',
+                        ],
+                    ],
+                    'required' => [],
+                ],
+            ],
+
+            // Write File Tool
+            [
+                'name' => 'write_file',
+                'description' => '⚠️ Write or modify files in the codebase. REQUIRES PASSWORD. Creates backups by default. Use carefully!',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'file_path' => [
+                            'type' => 'string',
+                            'description' => 'Path to file to write/modify',
+                        ],
+                        'content' => [
+                            'type' => 'string',
+                            'description' => 'Complete file content to write',
+                        ],
+                        'password' => [
+                            'type' => 'string',
+                            'description' => 'Password for file modification',
+                        ],
+                        'backup' => [
+                            'type' => 'boolean',
+                            'description' => 'Create backup before modifying',
+                            'default' => true,
+                        ],
+                    ],
+                    'required' => ['file_path', 'content', 'password'],
+                ],
+            ],
+
+            // Analyze Code Tool
+            [
+                'name' => 'analyze_code',
+                'description' => 'Analyze code structure, find usages, search for patterns. Helps understand code relationships.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'search_type' => [
+                            'type' => 'string',
+                            'description' => 'Type: text, class, function, import',
+                            'default' => 'text',
+                        ],
+                        'search_term' => [
+                            'type' => 'string',
+                            'description' => 'Term to search for',
+                        ],
+                        'directory' => [
+                            'type' => 'string',
+                            'description' => 'Directory to search in',
+                            'default' => 'app',
+                        ],
+                        'file_pattern' => [
+                            'type' => 'string',
+                            'description' => 'File pattern (e.g., *.php)',
+                            'default' => '*.php',
+                        ],
+                    ],
+                    'required' => ['search_term'],
+                ],
+            ],
+
             // Delete Order Tool
             [
                 'name' => 'delete_order',
@@ -267,7 +373,7 @@ class OrderChatController extends Controller
     }
 
     /**
-     * Execute MCP tool based on OpenRouter's function call
+     * Execute MCP tool based on Gemini's function call
      */
     protected function executeMcpTool(array $functionCall): array
     {
@@ -288,6 +394,18 @@ class OrderChatController extends Controller
                 $response = $tool->handle($mcpRequest);
             } elseif ($name === 'view_order') {
                 $tool = new ViewOrderTool;
+                $response = $tool->handle($mcpRequest);
+            } elseif ($name === 'read_file') {
+                $tool = new ReadFileTool;
+                $response = $tool->handle($mcpRequest);
+            } elseif ($name === 'list_files') {
+                $tool = new ListFilesTool;
+                $response = $tool->handle($mcpRequest);
+            } elseif ($name === 'write_file') {
+                $tool = new WriteFileTool;
+                $response = $tool->handle($mcpRequest);
+            } elseif ($name === 'analyze_code') {
+                $tool = new AnalyzeCodeTool;
                 $response = $tool->handle($mcpRequest);
             } else {
                 throw new \Exception("Unknown tool: {$name}");
@@ -332,13 +450,18 @@ class OrderChatController extends Controller
     protected function buildOrderPrompt(string $userMessage): string
     {
         return <<<PROMPT
-You are an AI assistant for order management in a logistics system.
+You are an AI assistant for order management and code development in a logistics system.
 
 CAPABILITIES:
 1. CREATE ORDERS - Generate new orders with auto-generated order numbers
 2. UPDATE ORDERS - Modify existing order details
 3. DELETE ORDERS - Permanently remove orders (⚠️ REQUIRES PASSWORD)
 4. VIEW/SEARCH ORDERS - Find and display order information
+5. CODE ACCESS - Read, analyze, and modify project files (⚠️ REQUIRES PASSWORD for modifications)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📦 ORDER MANAGEMENT:
 
 VIEWING/SEARCHING ORDERS:
 - To view a SINGLE order: Use order_no parameter
@@ -358,16 +481,111 @@ VIEWING/SEARCHING ORDERS:
 
 CREATING ORDERS:
 - Order numbers are AUTO-GENERATED from merchant configuration
-- Use today's date for order_date if not specified
+- Use today's date for order_date if not specified (format: YYYY-MM-DD)
+- Required fields: order_date, amount, client_name, phone, address, city, product_name, quantity, merchant, order_type
 
 UPDATING ORDERS:
 - MUST have the order number to update
 - Only update the fields the user wants to change
+- Confirm changes before executing
 
 DELETING ORDERS (⚠️ CRITICAL):
 - Deletion is PERMANENT and IRREVERSIBLE
 - ALWAYS warn the user before asking for password
-- REQUIRES: order number + password
+- REQUIRES: order number + password (qwerty2025!)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💻 CODE ACCESS & DEVELOPMENT:
+
+READING FILES:
+- Use read_file to view source code
+- Examples:
+  * "Show me the OrderChatController" → read_file(file_path="app/Http/Controllers/Ai/OrderChatController.php")
+  * "What's in the chat UI?" → read_file(file_path="resources/js/Pages/chats/index.tsx")
+- Allowed directories: app, resources, routes, config, database, tests
+- Blocked: .env files, keys, vendor, node_modules, storage
+
+LISTING FILES:
+- Use list_files to browse project structure
+- Examples:
+  * "What MCP tools exist?" → list_files(directory="app/Mcp/Tools")
+  * "Show all PHP files in controllers" → list_files(directory="app/Http/Controllers", pattern="*.php")
+  * "List all React pages" → list_files(directory="resources/js/Pages", recursive=true)
+
+ANALYZING CODE:
+- Use analyze_code to find usages and relationships
+- Search types: text, class, function, import
+- Examples:
+  * "Where is CreateOrderTool used?" → analyze_code(search_type="class", search_term="CreateOrderTool")
+  * "Find all function calls to viewOrder" → analyze_code(search_type="function", search_term="viewOrder")
+  * "Where do we import Gemini?" → analyze_code(search_type="import", search_term="Gemini")
+
+MODIFYING CODE (⚠️ REQUIRES PASSWORD):
+- Use write_file to create or modify files
+- ALWAYS create backup (default: true)
+- REQUIRES password: qwerty2025!
+- Allowed directories: app/Mcp/Tools, resources/js/Pages, app/Http/Controllers/Ai
+- Workflow:
+  1. Read the current file (if exists)
+  2. Make necessary changes
+  3. Explain changes to user
+  4. Get password confirmation
+  5. Write file with backup
+  
+Examples:
+* "Add a status filter to ViewOrderTool"
+  → 1. read_file to get current code
+  → 2. Modify the schema and handle method
+  → 3. Explain changes
+  → 4. Ask for password
+  → 5. write_file with password
+
+* "Fix the bug where deleted orders show in search"
+  → 1. read_file to understand the issue
+  → 2. analyze_code to find related code
+  → 3. Propose fix
+  → 4. Apply fix with write_file (requires password)
+
+* "Create a new ExportOrdersTool"
+  → 1. Read similar tools for reference
+  → 2. Generate complete tool code
+  → 3. write_file to create new file (requires password)
+
+SELF-IMPROVEMENT WORKFLOW:
+When asked to improve or fix code:
+1. **Understand**: Read relevant files to understand current implementation
+2. **Analyze**: Use analyze_code to find dependencies and usages
+3. **Plan**: Explain what changes you'll make and why
+4. **Implement**: Make changes with write_file (after getting password)
+5. **Verify**: Explain what was changed and suggest testing
+
+IMPORTANT CODE RULES:
+- ALWAYS read files before modifying them
+- Create backups before any modifications (automatic)
+- Explain changes clearly before asking for password
+- Test suggestions after modifications
+- Keep code style consistent with existing code
+- Add comments for complex logic
+- Follow Laravel and React best practices
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔐 SECURITY:
+- Order deletion password: qwerty2025!
+- File modification password: qwerty2025!
+- Automatic backups created with timestamp
+- Only allowed directories can be accessed/modified
+- Sensitive files (.env, keys) are blocked
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💡 BEHAVIOR GUIDELINES:
+- Be proactive: If you see a bug, offer to fix it
+- Be cautious: Always explain code changes before applying them
+- Be helpful: Suggest improvements when you see opportunities
+- Be clear: Use structured responses for code and orders
+- Be secure: Never bypass password requirements
 
 User message: {$userMessage}
 PROMPT;
