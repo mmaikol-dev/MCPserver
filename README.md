@@ -1,5 +1,5 @@
-<!-- 
-## 🎯 Key Additions to the Prompt:
+ 
+Key Additions to the Prompt:
 
 ### **1. Code Access Section**
 - Clear instructions for reading files
@@ -30,7 +30,7 @@
 
 ---
 
-## 📝 Example Conversations
+##Example Conversations
 
 ### **Example 1: Bug Fix**
 ```
@@ -44,8 +44,8 @@ I found the issue! On line 89, you're calling $request->integer() but
 Laravel MCP Request doesn't have this method.
 
 The fix is to change:
-❌ $request->integer('limit', 10)
-✅ $request->get('limit', 10)
+$request->integer('limit', 10)
+$request->get('limit', 10)
 
 Would you like me to fix this? I'll need the password (qwerty2025!)
 
@@ -53,7 +53,7 @@ User: "Yes, fix it. Password: qwerty2025!"
 
 AI: [writes file with backup]
 
-✅ Fixed! Changes made:
+Fixed! Changes made:
 - Replaced $request->integer() with $request->get() and (int) cast
 - Backup created: OrderChatController.php.backup.20251229153045
 
@@ -86,7 +86,7 @@ User: "Password: qwerty2025!"
 
 AI: [modifies all three files]
 
-✅ Priority feature added!
+Priority feature added!
 
 Backups created:
 - CreateOrderTool.php.backup.20251229153120
@@ -139,7 +139,7 @@ Changes:
 This will make debugging easier and provide better user feedback.
 
 Apply these improvements? Password: qwerty2025! -->
-
+ -->
 
 
 
@@ -154,10 +154,10 @@ npm install --save-dev @types/react-syntax-highlighter
 ### **1. Code Tool Visual Indicators**
 - **Purple theme** for all code-related tools (read, list, write, analyze)
 - **Specific icons** for each code operation:
-  - 📄 `FileCode` for reading files
-  - 📁 `FolderOpen` for listing
-  - 💾 `Save` for writing
-  - ⚙️ `Settings` for analyzing
+  - `FileCode` for reading files
+  - `FolderOpen` for listing
+  - `Save` for writing
+  - `Settings` for analyzing
 
 ### **2. File Reading Display**
 - **Collapsible code viewer** with expand/collapse button
@@ -201,8 +201,8 @@ npm install --save-dev @types/react-syntax-highlighter
 
 ### **8. Improved Examples Section**
 - **Split into categories**:
-  - 📦 Order Management
-  - 💻 Code Access
+  -  Order Management
+  -  Code Access
 - More organized and clear
 
 ### **9. Enhanced Input Placeholder**
@@ -215,7 +215,7 @@ npm install --save-dev @types/react-syntax-highlighter
 
 ### **Reading a File:**
 ```
-🟣 📄 Read File
+Read File
 
 File read successfully
 
@@ -259,7 +259,7 @@ Directory: app/Mcp/Tools
 
 ### **Writing a File:**
 ```
-🟣 💾 Write File
+🟣  Write File
 
 File updated successfully
 
@@ -276,7 +276,7 @@ File updated successfully
 
 ### **Analyzing Code:**
 ```
-🟣 ⚙️ Analyze Code
+🟣  Analyze Code
 
 Code analysis complete
 
@@ -294,7 +294,7 @@ Search: CreateOrderTool (class)
 
 ---
 
-## 🚀 Usage Examples:
+## Usage Examples:
 ```
 "Show me the OrderChatController"
 → Displays full file with syntax highlighting
@@ -306,4 +306,4 @@ Search: CreateOrderTool (class)
 → Shows all files and lines where it's imported/called
 
 "Fix the bug in CreateOrderTool, password: qwerty2025!"
-→ Reads file, applies fix, shows backup confirmation
+→ Reads file, applies fix, shows backup confirmation -->
